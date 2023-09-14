@@ -5,110 +5,117 @@
 
 using namespace std;
 
-// Define a structure to represent a state (position of monkey and box)
-struct State {
-    int monkey_x, monkey_y, box_x, box_y;
-    
-    State(int mx, int my, int bx, int by)
-        : monkey_x(mx), monkey_y(my), box_x(bx), box_y(by) {}
+// Define the dimensions of the grid
+const int ROWS = 5;
+const int COLS = 5;
+
+// Define possible directions (up, down, left, right)
+const int dx[] = {0, 0, -1, 1};
+const int dy[] = {-1, 1, 0, 0};
+
+// Define a structure to represent a cell in the grid
+struct Cell {
+    int x, y; // Coordinates of the cell
+    int cost; // Cost to reach this cell
+    int heuristic; // Heuristic value
+    int totalCost; // Total cost (cost + heuristic)
 };
 
-// Define a function to calculate the Euclidean distance heuristic
-int heuristic(int x1, int y1, int x2, int y2) {
-    return static_cast<int>(sqrt(pow(x1 - x2, 2) + pow(y1 - y2, 2)));
+// Custom comparator for the priority queue
+struct CompareCell {
+    bool operator()(const Cell& a, const Cell& b) const {
+        return a.totalCost > b.totalCost;
+    }
+};
+
+// Function to calculate the heuristic value (Euclidean distance)
+int calculateHeuristic(int x1, int y1, int x2, int y2) {
+    return sqrt((x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2));
 }
 
-// Define a function to check if a state is valid
-bool is_valid(const State& state, int rows, int cols) {
-    return state.monkey_x >= 0 && state.monkey_x < rows &&
-           state.monkey_y >= 0 && state.monkey_y < cols &&
-           state.box_x >= 0 && state.box_x < rows &&
-           state.box_y >= 0 && state.box_y < cols;
+// Function to check if a cell is valid (within grid bounds)
+bool isValid(int x, int y) {
+    return x >= 0 && x < ROWS && y >= 0 && y < COLS;
 }
 
-int ao_star(const State& start, const State& goal, int rows, int cols) {
-    // Priority queue to store states
-    priority_queue<pair<int, State>> open_set;
+// AO* algorithm
+void aoStar(int startX, int startY, int goalX, int goalY) {
+    // Create a 2D array to store the cost of reaching each cell
+    vector<vector<int>> costGrid(ROWS, vector<int>(COLS, INT_MAX));
     
-    // Map to store the cost to reach each state
-    map<State, int> g_values;
+    // Create a priority queue for open cells
+    priority_queue<Cell, vector<Cell>, CompareCell> open;
     
-    // Initialize the open set with the start state
-    open_set.push({0 + heuristic(start.monkey_x, start.monkey_y, goal.monkey_x, goal.monkey_y), start});
-    g_values[start] = 0;
+    // Initialize the start cell
+    Cell startCell = {startX, startY, 0, calculateHeuristic(startX, startY, goalX, goalY)};
+    startCell.totalCost = startCell.cost + startCell.heuristic;
+    open.push(startCell);
     
-    while (!open_set.empty()) {
-        // Get the state with the lowest estimated cost
-        State current = open_set.top().second;
-        open_set.pop();
+    while (!open.empty()) {
+        // Get the cell with the lowest total cost from the priority queue
+        Cell current = open.top();
+        open.pop();
         
-        // If we reach the goal state, return the cost
-        if (current.monkey_x == goal.monkey_x && current.monkey_y == goal.monkey_y) {
-            return g_values[current];
+        int x = current.x;
+        int y = current.y;
+        int cost = current.cost;
+        
+        // If we reached the goal cell, we're done
+        if (x == goalX && y == goalY) {
+            cout << "Monkey reached the banana with a cost of " << cost << endl;
+            return;
         }
         
-        // Define possible moves (up, down, left, right)
-        int dx[] = {1, -1, 0, 0};
-        int dy[] = {0, 0, 1, -1};
+        // Skip this cell if we have already found a cheaper path
+        if (cost >= costGrid[x][y])
+            continue;
         
-        // Try each possible move
+        // Update the cost of reaching this cell
+        costGrid[x][y] = cost;
+        
+        // Expand to neighboring cells
         for (int i = 0; i < 4; ++i) {
-            int new_mx = current.monkey_x + dx[i];
-            int new_my = current.monkey_y + dy[i];
-            int new_bx = current.box_x;
-            int new_by = current.box_y;
+            int newX = x + dx[i];
+            int newY = y + dy[i];
             
-            // Check if the new state is valid
-            State new_state(new_mx, new_my, new_bx, new_by);
-            if (!is_valid(new_state, rows, cols)) {
-                continue;
-            }
-            
-            // Calculate the cost to reach the new state
-            int new_g = g_values[current] + 1;
-            
-            // Update the cost if it's lower than the current cost
-            if (new_g < g_values[new_state]) {
-                g_values[new_state] = new_g;
-                int f_value = new_g + heuristic(new_mx, new_my, goal.monkey_x, goal.monkey_y);
-                open_set.push({f_value, new_state});
+            // Check if the neighbor is valid and not an obstacle
+            if (isValid(newX, newY)) {
+                int newCost = cost + 1; // Assuming uniform cost for simplicity
+                
+                // Calculate the heuristic for the neighbor
+                int newHeuristic = calculateHeuristic(newX, newY, goalX, goalY);
+                
+                // Create the neighbor cell
+                Cell neighbor = {newX, newY, newCost, newHeuristic};
+                neighbor.totalCost = newCost + newHeuristic;
+                
+                // Add the neighbor to the open list
+                open.push(neighbor);
             }
         }
     }
     
-    // If no path is found, return -1
-    return -1;
+    // If we reach here, there is no path to the goal
+    cout << "No path found to the banana." << endl;
 }
 
 int main() {
-    int rows, cols;
-    cout << "Enter the number of rows and columns in the grid: ";
-    cin >> rows >> cols;
+    int startX, startY, goalX, goalY;
     
-    int monkey_x, monkey_y, banana_x, banana_y, box_x, box_y;
-    cout << "Enter the monkey's coordinates (x y): ";
-    cin >> monkey_x >> monkey_y;
+    // Input the monkey's starting position and banana's position
+    cout << "Enter monkey's starting position (x y): ";
+    cin >> startX >> startY;
+    cout << "Enter banana's position (x y): ";
+    cin >> goalX >> goalY;
     
-    cout << "Enter the banana's coordinates (x y): ";
-    cin >> banana_x >> banana_y;
-    
-    cout << "Enter the box's coordinates (x y): ";
-    cin >> box_x >> box_y;
-    
-    State start(monkey_x, monkey_y, box_x, box_y);
-    State goal(banana_x, banana_y, box_x, box_y);
-    
-    int result = ao_star(start, goal, rows, cols);
-    
-    if (result != -1) {
-        cout << "The monkey can reach the banana in " << result << " moves." << endl;
-    } else {
-        cout << "The monkey cannot reach the banana." << endl;
+    // Check if the positions are valid
+    if (!isValid(startX, startY) || !isValid(goalX, goalY)) {
+        cout << "Invalid positions. Please ensure they are within the grid." << endl;
+        return 1;
     }
+    
+    // Call the AO* algorithm to find the shortest path
+    aoStar(startX, startY, goalX, goalY);
     
     return 0;
 }
-
-//EXPLANATION
-
-// The heuristic function calculates the Euclidean distance between two points, which we use as the heuristic for estimating the cost to reach the goal.
